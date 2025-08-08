@@ -1,45 +1,50 @@
-const express = require("express");
-const cors = require("cors");
-const dotenv = require("dotenv");
-const axios = require("axios");
-const path = require("path");
+import express from "express";
+import fetch from "node-fetch";
+import path from "path";
+import dotenv from "dotenv";
 
 dotenv.config();
 const app = express();
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// Serve all static files (HTML, CSS, JS, images)
+app.use(express.static(path.resolve()));
+
+// Parse JSON requests
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
 
-app.post("/get-forecast", async (req, res) => {
-  const location = req.body.location;
-
-  const prompt = `Forecast climate impacts for "${location}" by analyzing historical climate data, current environmental conditions, and human activities. Inform effective mitigation strategies. Return the result in 4–6 lines.`;
+// Gemini API route
+app.post("/api/forecast", async (req, res) => {
+  const { location } = req.body;
 
   try {
-    const result = await axios.post(
-      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" +
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" +
         process.env.GEMINI_API_KEY,
       {
-        contents: [
-          {
-            parts: [{ text: prompt }],
-            role: "user",
-          },
-        ],
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: `Give me a climate forecast for ${location} in short and clear language.` }
+              ]
+            }
+          ]
+        })
       }
     );
 
-    const reply =
-      result.data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
-    res.json({ reply });
+    const data = await response.json();
+    res.json(data);
   } catch (error) {
-    console.error("❌ Gemini API error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to get response from Gemini." });
+    console.error(error);
+    res.status(500).json({ error: "Something went wrong" });
   }
 });
 
-app.listen(port, () => {
-  console.log(`🌐 Server running at http://localhost:${port}`);
+// Start server (for local testing)
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
